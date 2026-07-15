@@ -27,6 +27,7 @@ const copy = {
     remindersCopy: "Ask iPhone for real Reminders access through EventKit.",
     connect: "Connect",
     enableNotifications: "Enable notifications",
+    safariNotice: "Safari mode: in-page alerts work here; system notifications need installed web app support.",
     empty: "No tasks yet. Suspiciously peaceful.",
     nativeOnly: "Open this inside the iPhone wrapper so I can ask Apple properly. Browser me has no Calendar keys.",
     accessRequested: "Permission request sent. Finally, official paperwork.",
@@ -35,6 +36,7 @@ const copy = {
     importedReminder: "Reminders imported",
     badTime: "Use 24h time like 14:00. AM/PM has been banished.",
     notificationReady: "Notifications are ready. I will be lovingly unbearable on time.",
+    notificationFallback: "Safari will alert here while this page is open. Add it to Home Screen for the best iPhone behavior.",
     duePrefix: "Time is up",
     sittingReset: "Fine. You stood up. I am proud, but do not get dramatic.",
     sittingNag: "You lazy still sitting? Stand up now, superstar.",
@@ -83,6 +85,7 @@ const copy = {
     remindersCopy: "iPhone si realne vypita pristup do Pripomienok cez EventKit.",
     connect: "Pripojit",
     enableNotifications: "Zapnut notifikacie",
+    safariNotice: "Safari rezim: upozornenia v appke funguju tu; systemove notifikacie potrebuju podporu instalovanej web appky.",
     empty: "Ziadne ulohy. Podozrivo pokojne.",
     nativeOnly: "Otvor toto v iPhone wrapperi, aby som si vedela od Apple realne vypytat pristup. Browser nema kluce od Kalendara.",
     accessRequested: "Ziadost o pristup odoslana. Konecne oficialne papierovacky.",
@@ -91,6 +94,7 @@ const copy = {
     importedReminder: "Pripomienky nacitane",
     badTime: "Pouzi 24h cas, napriklad 14:00. AM/PM sme vyhodili.",
     notificationReady: "Notifikacie su pripravene. Budem otravna presne nacas.",
+    notificationFallback: "Safari upozorni priamo tu, ked je stranka otvorena. Pre najlepsie iPhone spravanie ju pridaj na plochu.",
     duePrefix: "Cas vyprsal",
     sittingReset: "Dobre. Postavil si sa. Som hrda, ale nerob z toho dramu.",
     sittingNag: "Ty lenivec, stale sedis? Hned sa postav.",
@@ -186,24 +190,65 @@ function speakForTask(task, sendNotification = false) {
 }
 
 function notify(message) {
-  if (!("Notification" in window)) return;
+  if (!("Notification" in window)) {
+    inAppAlert(message);
+    return;
+  }
   if (Notification.permission === "granted") {
     new Notification("Spouse Nudge", { body: message });
   } else if (Notification.permission !== "denied") {
-    Notification.requestPermission();
+    inAppAlert(message);
   }
 }
 
 function askNotifications() {
   if (!("Notification" in window)) {
-    setSpouseLine("Notifications are not supported in this browser.");
+    setSpouseLine(t("notificationFallback"));
+    inAppAlert(t("notificationFallback"));
     return;
   }
-  Notification.requestPermission().then((permission) => {
+
+  const handlePermission = (permission) => {
     if (permission === "granted") {
       setSpouseLine(t("notificationReady"));
+    } else {
+      setSpouseLine(t("notificationFallback"));
+      inAppAlert(t("notificationFallback"));
     }
-  });
+  };
+
+  const request = Notification.requestPermission(handlePermission);
+  if (request?.then) request.then(handlePermission);
+}
+
+function inAppAlert(message) {
+  setSpouseLine(message);
+  const speech = $(".speech-card");
+  speech.classList.remove("nudge-now");
+  window.requestAnimationFrame(() => speech.classList.add("nudge-now"));
+  if ("vibrate" in navigator) navigator.vibrate([160, 80, 160]);
+  playNudgeSound();
+}
+
+function playNudgeSound() {
+  try {
+    const AudioContext = window.AudioContext || window.webkitAudioContext;
+    if (!AudioContext) return;
+    const context = new AudioContext();
+    const oscillator = context.createOscillator();
+    const gain = context.createGain();
+    oscillator.type = "triangle";
+    oscillator.frequency.value = 660;
+    gain.gain.setValueAtTime(0.001, context.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.18, context.currentTime + 0.02);
+    gain.gain.exponentialRampToValueAtTime(0.001, context.currentTime + 0.45);
+    oscillator.connect(gain);
+    gain.connect(context.destination);
+    oscillator.start();
+    oscillator.stop(context.currentTime + 0.48);
+  } catch {
+    // Safari may block audio until the user interacts with the page.
+  }
 }
 
 function isValidTime(value) {
@@ -444,6 +489,13 @@ function bindEvents() {
   $("#syncReminders").addEventListener("click", () => requestAppleAccess("reminders"));
 }
 
+function registerServiceWorker() {
+  if (!("serviceWorker" in navigator)) return;
+  navigator.serviceWorker.register("./sw.js").catch(() => {
+    setSpouseLine(t("notificationFallback"));
+  });
+}
+
 function init() {
   $("#sitLimit").value = state.sittingLimit;
   $("#sitLimitValue").textContent = state.sittingLimit;
@@ -460,6 +512,7 @@ function init() {
   clearInterval(state.notificationTimer);
   state.notificationTimer = setInterval(checkDueTasks, 15000);
   checkDueTasks();
+  registerServiceWorker();
 }
 
 init();

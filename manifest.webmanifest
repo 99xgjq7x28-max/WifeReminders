@@ -1,0 +1,19 @@
+{
+  "name": "Spouse Nudge",
+  "short_name": "Nudge",
+  "description": "Funny spouse-tone reminders for tasks, standing breaks, Calendar and Reminders.",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#f7f3ec",
+  "theme_color": "#f7f3ec",
+  "orientation": "portrait",
+  "icons": [
+    {
+      "src": "./icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}
