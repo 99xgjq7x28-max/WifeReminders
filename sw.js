@@ -1,12 +1,12 @@
-const APP_VERSION = "1.0.2";
+const APP_VERSION = "1.1.0";
 const CACHE_NAME = `spouse-nudge-${APP_VERSION}`;
 const ASSETS = [
   "./",
   "./index.html",
-  "./styles.css?v=1.0.2",
-  "./app.js?v=1.0.2",
-  "./manifest.webmanifest?v=1.0.2",
-  "./icon.svg?v=1.0.2"
+  "./styles.css?v=1.1.0",
+  "./app.js?v=1.1.0",
+  "./manifest.webmanifest?v=1.1.0",
+  "./icon.svg?v=1.1.0"
 ];
 
 self.addEventListener("install", (event) => {
@@ -55,8 +55,8 @@ self.addEventListener("push", (event) => {
   event.waitUntil(
     self.registration.showNotification(data.title || "Spouse Nudge", {
       body: data.body || "Have you done it already?",
-      icon: "./icon.svg?v=1.0.2",
-      badge: "./icon.svg?v=1.0.2"
+      icon: "./icon.svg?v=1.1.0",
+      badge: "./icon.svg?v=1.1.0"
     })
   );
 });
