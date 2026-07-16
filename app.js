@@ -4,6 +4,9 @@ const copy = {
     title: "Did you do it already?",
     language: "Language",
     happiness: "Spouse happiness",
+    totalTasks: "tasks total",
+    openTasks: "open",
+    doneTasks: "done",
     randomNag: "Nag me",
     tabToday: "Today",
     tabSitting: "Sitting",
@@ -21,6 +24,8 @@ const copy = {
     pause: "Pause",
     stoodUp: "I stood up",
     sitLimit: "Nudge after minutes",
+    activeFrom: "Active from",
+    activeTo: "Active to",
     calendarTitle: "Calendar",
     calendarCopy: "Ask iPhone for real Calendar access through EventKit.",
     remindersTitle: "Reminders",
@@ -39,7 +44,9 @@ const copy = {
     notificationFallback: "Safari will alert here while this page is open. Add it to Home Screen for the best iPhone behavior.",
     duePrefix: "Time is up",
     sittingReset: "Fine. You stood up. I am proud, but do not get dramatic.",
+    sittingOutside: "You are outside nagging hours. Enjoy the silence while it lasts.",
     sittingNag: "You lazy still sitting? Stand up now, superstar.",
+    sittingWaiting: "I am waiting. Press 'I stood up' and prove you have legs.",
     done: "Completed",
     sweetLines: [
       "Honey, have you done {task} already, or are we pretending again?",
@@ -62,6 +69,9 @@ const copy = {
     title: "Uz si to spravil?",
     language: "Jazyk",
     happiness: "Stastie manzelky",
+    totalTasks: "uloh spolu",
+    openTasks: "otvorene",
+    doneTasks: "hotove",
     randomNag: "Otrav ma",
     tabToday: "Dnes",
     tabSitting: "Sedenie",
@@ -79,6 +89,8 @@ const copy = {
     pause: "Pauza",
     stoodUp: "Postavil som sa",
     sitLimit: "Pripomen po minutach",
+    activeFrom: "Aktivne od",
+    activeTo: "Aktivne do",
     calendarTitle: "Kalendar",
     calendarCopy: "iPhone si realne vypita pristup do Kalendara cez EventKit.",
     remindersTitle: "Pripomienky",
@@ -97,7 +109,9 @@ const copy = {
     notificationFallback: "Safari upozorni priamo tu, ked je stranka otvorena. Pre najlepsie iPhone spravanie ju pridaj na plochu.",
     duePrefix: "Cas vyprsal",
     sittingReset: "Dobre. Postavil si sa. Som hrda, ale nerob z toho dramu.",
+    sittingOutside: "Sme mimo hodin otravovania. Uzi si ticho, kym trva.",
     sittingNag: "Ty lenivec, stale sedis? Hned sa postav.",
+    sittingWaiting: "Cakam. Stlac 'Postavil som sa' a dokaz, ze mas nohy.",
     done: "Hotovo",
     sweetLines: [
       "Milacik, uz si spravil {task}, alebo sa dnes iba tvarime?",
@@ -124,6 +138,10 @@ const state = {
   sittingActive: false,
   sittingLimit: Number(localStorage.getItem("spouse-nudge-sit-limit") || 40),
   sittingAlerted: false,
+  sittingAwaitingStand: false,
+  sittingOutsideNotified: false,
+  sittingStart: localStorage.getItem("spouse-nudge-sit-start") || "07:00",
+  sittingEnd: localStorage.getItem("spouse-nudge-sit-end") || "22:00",
   timer: null,
   notificationTimer: null
 };
@@ -139,6 +157,8 @@ function persist() {
   localStorage.setItem("spouse-nudge-tasks", JSON.stringify(state.tasks));
   localStorage.setItem("spouse-nudge-lang", state.lang);
   localStorage.setItem("spouse-nudge-sit-limit", String(state.sittingLimit));
+  localStorage.setItem("spouse-nudge-sit-start", state.sittingStart);
+  localStorage.setItem("spouse-nudge-sit-end", state.sittingEnd);
 }
 
 function applyLanguage() {
@@ -153,6 +173,7 @@ function applyLanguage() {
   $("#language").value = state.lang;
   renderTasks();
   updateMood();
+  updateSittingWindowLabel();
 }
 
 function saveTask(text, time, tone) {
@@ -170,6 +191,7 @@ function saveTask(text, time, tone) {
   state.tasks.unshift(task);
   persist();
   renderTasks();
+  updateMood();
   speakForTask(task);
   scheduleNativeNotification(task, lineFromTask(task));
 }
@@ -251,10 +273,6 @@ function playNudgeSound() {
   }
 }
 
-function isValidTime(value) {
-  return /^([01][0-9]|2[0-3]):[0-5][0-9]$/.test(value);
-}
-
 function checkDueTasks() {
   const now = new Date();
   const today = now.toISOString().slice(0, 10);
@@ -305,6 +323,7 @@ function renderTasks() {
     checkbox.addEventListener("change", () => toggleTask(task.id));
 
     const text = document.createElement("div");
+    text.className = "task-copy";
     const title = document.createElement("strong");
     title.textContent = task.text;
     const meta = document.createElement("small");
@@ -348,8 +367,12 @@ function deleteTask(id) {
 function updateMood() {
   const total = state.tasks.length;
   const done = state.tasks.filter((task) => task.done).length;
+  const open = total - done;
   const percent = total ? Math.round((done / total) * 100) : 0;
   $("#happyPercent").textContent = `${percent}%`;
+  $("#totalTasks").textContent = String(total);
+  $("#openTasks").textContent = String(open);
+  $("#doneTasks").textContent = String(done);
   $("#happyBar").style.width = `${percent}%`;
   const fillHeight = Math.round(93 * (percent / 100));
   $("#spouseFill").setAttribute("height", fillHeight);
@@ -373,10 +396,27 @@ function formatSittingTime() {
 }
 
 function tickSitting() {
+  if (!isWithinSittingWindow()) {
+    if (!state.sittingOutsideNotified) setSpouseLine(t("sittingOutside"));
+    state.sittingSeconds = 0;
+    state.sittingAlerted = false;
+    state.sittingAwaitingStand = false;
+    state.sittingOutsideNotified = true;
+    formatSittingTime();
+    return;
+  }
+  state.sittingOutsideNotified = false;
+
+  if (state.sittingAwaitingStand) {
+    setSpouseLine(t("sittingWaiting"));
+    return;
+  }
+
   state.sittingSeconds += 1;
   formatSittingTime();
   if (!state.sittingAlerted && state.sittingSeconds >= state.sittingLimit * 60) {
     state.sittingAlerted = true;
+    state.sittingAwaitingStand = true;
     setSpouseLine(t("sittingNag"));
     notify(t("sittingNag"));
   }
@@ -386,17 +426,83 @@ function setSitting(active) {
   state.sittingActive = active;
   clearInterval(state.timer);
   if (active) {
+    if (!isWithinSittingWindow()) {
+      state.sittingSeconds = 0;
+      formatSittingTime();
+      setSpouseLine(t("sittingOutside"));
+    }
     state.timer = setInterval(tickSitting, 1000);
   }
   $("#sitStart").textContent = active ? t("pause") : t("start");
 }
 
 function resetSitting() {
-  setSitting(false);
   state.sittingSeconds = 0;
   state.sittingAlerted = false;
+  state.sittingAwaitingStand = false;
+  state.sittingOutsideNotified = false;
   formatSittingTime();
   setSpouseLine(t("sittingReset"));
+  if (state.sittingActive) {
+    clearInterval(state.timer);
+    state.timer = setInterval(tickSitting, 1000);
+  }
+}
+
+function minutesFromTime(value) {
+  const [hours, minutes] = value.split(":").map(Number);
+  return hours * 60 + minutes;
+}
+
+function isWithinSittingWindow() {
+  const now = new Date();
+  const current = now.getHours() * 60 + now.getMinutes();
+  const start = minutesFromTime(state.sittingStart);
+  const end = minutesFromTime(state.sittingEnd);
+  if (start <= end) return current >= start && current <= end;
+  return current >= start || current <= end;
+}
+
+function updateSittingWindowLabel() {
+  $("#sittingWindowLabel").textContent = `${state.sittingStart} - ${state.sittingEnd}`;
+}
+
+function setPickerValue(hourId, minuteId, value) {
+  const [hour, minute] = value.split(":");
+  $(`#${hourId}`).value = hour;
+  $(`#${minuteId}`).value = minute;
+}
+
+function pickerTime(hourId, minuteId) {
+  return `${$(`#${hourId}`).value}:${$(`#${minuteId}`).value}`;
+}
+
+function populateTimePickers() {
+  const hourIds = ["taskHour", "sitStartHour", "sitEndHour"];
+  const minuteIds = ["taskMinute", "sitStartMinute", "sitEndMinute"];
+  hourIds.forEach((id) => {
+    const select = $(`#${id}`);
+    select.innerHTML = "";
+    for (let hour = 0; hour < 24; hour += 1) {
+      const option = document.createElement("option");
+      option.value = String(hour).padStart(2, "0");
+      option.textContent = String(hour).padStart(2, "0");
+      select.append(option);
+    }
+  });
+  minuteIds.forEach((id) => {
+    const select = $(`#${id}`);
+    select.innerHTML = "";
+    for (let minute = 0; minute < 60; minute += 5) {
+      const option = document.createElement("option");
+      option.value = String(minute).padStart(2, "0");
+      option.textContent = String(minute).padStart(2, "0");
+      select.append(option);
+    }
+  });
+  setPickerValue("taskHour", "taskMinute", "09:00");
+  setPickerValue("sitStartHour", "sitStartMinute", state.sittingStart);
+  setPickerValue("sitEndHour", "sitEndMinute", state.sittingEnd);
 }
 
 function addImported(kind, items = []) {
@@ -452,20 +558,10 @@ function bindEvents() {
   $("#taskForm").addEventListener("submit", (event) => {
     event.preventDefault();
     const text = $("#taskText").value.trim();
-    const time = $("#taskTime").value.trim();
+    const time = pickerTime("taskHour", "taskMinute");
     if (!text) return;
-    if (time && !isValidTime(time)) {
-      setSpouseLine(t("badTime"));
-      $("#taskTime").focus();
-      return;
-    }
     saveTask(text, time, $("#taskTone").value);
-    event.target.reset();
-  });
-
-  $("#taskTime").addEventListener("input", (event) => {
-    const digits = event.target.value.replace(/\D/g, "").slice(0, 4);
-    event.target.value = digits.length > 2 ? `${digits.slice(0, 2)}:${digits.slice(2)}` : digits;
+    $("#taskText").value = "";
   });
 
   $$(".tab").forEach((tab) => {
@@ -485,6 +581,14 @@ function bindEvents() {
     state.sittingAlerted = state.sittingSeconds >= state.sittingLimit * 60;
     persist();
   });
+  ["sitStartHour", "sitStartMinute", "sitEndHour", "sitEndMinute"].forEach((id) => {
+    $(`#${id}`).addEventListener("change", () => {
+      state.sittingStart = pickerTime("sitStartHour", "sitStartMinute");
+      state.sittingEnd = pickerTime("sitEndHour", "sitEndMinute");
+      updateSittingWindowLabel();
+      persist();
+    });
+  });
   $("#syncCalendar").addEventListener("click", () => requestAppleAccess("calendar"));
   $("#syncReminders").addEventListener("click", () => requestAppleAccess("reminders"));
 }
@@ -497,6 +601,7 @@ function registerServiceWorker() {
 }
 
 function init() {
+  populateTimePickers();
   $("#sitLimit").value = state.sittingLimit;
   $("#sitLimitValue").textContent = state.sittingLimit;
   bindEvents();

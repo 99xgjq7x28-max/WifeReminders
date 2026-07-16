@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-  <meta name="theme-color" content="#f7f3ec">
+  <meta name="theme-color" content="#f6f7f9">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-title" content="Spouse Nudge">
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
@@ -27,6 +27,12 @@
           <option value="sk">SK</option>
         </select>
       </label>
+    </section>
+
+    <section class="stats-row" aria-label="Task summary">
+      <div class="stat-pill primary"><strong id="totalTasks">0</strong> <span data-i18n="totalTasks">tasks total</span></div>
+      <div class="stat-pill"><strong id="openTasks">0</strong> <span data-i18n="openTasks">open</span></div>
+      <div class="stat-pill"><strong id="doneTasks">0</strong> <span data-i18n="doneTasks">done</span></div>
     </section>
 
     <section class="hero-panel">
@@ -85,7 +91,11 @@
         <div class="input-grid">
           <label>
             <span data-i18n="when">When</span>
-            <input id="taskTime" name="taskTime" type="text" inputmode="numeric" maxlength="5" pattern="^([01][0-9]|2[0-3]):[0-5][0-9]$" data-i18n-placeholder="timePlaceholder" placeholder="14:00">
+            <div class="wheel-picker" aria-label="Task time">
+              <select id="taskHour" name="taskHour" aria-label="Hour"></select>
+              <span>:</span>
+              <select id="taskMinute" name="taskMinute" aria-label="Minute"></select>
+            </div>
           </label>
           <label>
             <span data-i18n="tone">Tone</span>
@@ -104,6 +114,7 @@
     <section id="sitting" class="screen">
       <div class="timer-card">
         <p data-i18n="sittingIntro">Sitting timer</p>
+        <small id="sittingWindowLabel">07:00 - 22:00</small>
         <strong id="sittingTime">00:00</strong>
         <div class="timer-actions">
           <button id="sitStart" type="button" data-i18n="start">Start</button>
@@ -114,6 +125,24 @@
           <output id="sitLimitValue">40</output>
         </label>
         <input id="sitLimit" type="range" min="5" max="60" step="5" value="40">
+        <div class="sitting-window">
+          <label>
+            <span data-i18n="activeFrom">Active from</span>
+            <div class="wheel-picker small">
+              <select id="sitStartHour" aria-label="Sitting start hour"></select>
+              <span>:</span>
+              <select id="sitStartMinute" aria-label="Sitting start minute"></select>
+            </div>
+          </label>
+          <label>
+            <span data-i18n="activeTo">Active to</span>
+            <div class="wheel-picker small">
+              <select id="sitEndHour" aria-label="Sitting end hour"></select>
+              <span>:</span>
+              <select id="sitEndMinute" aria-label="Sitting end minute"></select>
+            </div>
+          </label>
+        </div>
       </div>
     </section>
 
