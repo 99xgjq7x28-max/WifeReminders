@@ -600,7 +600,9 @@ function bindEvents() {
 
 function registerServiceWorker() {
   if (!("serviceWorker" in navigator)) return;
-  navigator.serviceWorker.register("./sw.js").catch(() => {
+  navigator.serviceWorker.register("./sw.js?v=1.0.2").then((registration) => {
+    registration.update();
+  }).catch(() => {
     setSpouseLine(t("notificationFallback"));
   });
 }
