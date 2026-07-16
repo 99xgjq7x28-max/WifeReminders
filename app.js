@@ -479,7 +479,6 @@ function pickerTime(hourId, minuteId) {
 
 function populateTimePickers() {
   const hourIds = ["taskHour", "sitStartHour", "sitEndHour"];
-  const minuteIds = ["taskMinute", "sitStartMinute", "sitEndMinute"];
   hourIds.forEach((id) => {
     const select = $(`#${id}`);
     select.innerHTML = "";
@@ -490,19 +489,25 @@ function populateTimePickers() {
       select.append(option);
     }
   });
-  minuteIds.forEach((id) => {
+
+  populateMinutePicker("taskMinute", 1);
+  populateMinutePicker("sitStartMinute", 5);
+  populateMinutePicker("sitEndMinute", 5);
+
+  setPickerValue("taskHour", "taskMinute", "09:00");
+  setPickerValue("sitStartHour", "sitStartMinute", state.sittingStart);
+  setPickerValue("sitEndHour", "sitEndMinute", state.sittingEnd);
+}
+
+function populateMinutePicker(id, step) {
     const select = $(`#${id}`);
     select.innerHTML = "";
-    for (let minute = 0; minute < 60; minute += 5) {
+    for (let minute = 0; minute < 60; minute += step) {
       const option = document.createElement("option");
       option.value = String(minute).padStart(2, "0");
       option.textContent = String(minute).padStart(2, "0");
       select.append(option);
     }
-  });
-  setPickerValue("taskHour", "taskMinute", "09:00");
-  setPickerValue("sitStartHour", "sitStartMinute", state.sittingStart);
-  setPickerValue("sitEndHour", "sitEndMinute", state.sittingEnd);
 }
 
 function addImported(kind, items = []) {
